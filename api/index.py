@@ -9,7 +9,7 @@ from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # ==========================================
-# 1. FASTAPI INITIALIZATION (Must be top-level & safe)
+# 1. FASTAPI INITIALIZATION
 # ==========================================
 app = FastAPI()
 
@@ -19,14 +19,20 @@ logger = logging.getLogger(__name__)
 # Environment Variables
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
-CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "").strip()
+raw_channel = os.environ.get("CHANNEL_LINK", "").strip()
 OWNER_NAME = os.environ.get("OWNER_NAME", "Owner").strip()
 try:
     ADMIN_ID = int(os.environ.get("ADMIN_ID", "0").strip())
 except ValueError:
     ADMIN_ID = 0
 
-# Safe Lazy Initialization for Bot and DB to prevent Vercel Build Crashes
+# Auto-format channel link (Converts https://t.me/example to @example)
+if "t.me/" in raw_channel:
+    CHANNEL_LINK = "@" + raw_channel.split("t.me/")[-1].split("/")[0]
+else:
+    CHANNEL_LINK = raw_channel
+
+# Safe Lazy Initialization
 bot = None
 users_col = None
 whitelist_col = None
@@ -34,10 +40,7 @@ whitelist_col = None
 def init_services():
     global bot, users_col, whitelist_col
     if bot is None:
-        if not BOT_TOKEN:
-            logger.error("BOT_TOKEN environment variable is missing!")
         bot = Bot(token=BOT_TOKEN)
-        
         client = AsyncIOMotorClient(MONGO_URI)
         db = client.osint_bot_db
         users_col = db.users
@@ -59,12 +62,17 @@ async def check_membership(user_id: int) -> bool:
     if not CHANNEL_LINK: 
         return True
     try:
+        # Admins bypass membership checks automatically
+        if user_id == ADMIN_ID:
+            return True
+            
         member = await bot.get_chat_member(CHANNEL_LINK, user_id)
         if member.status in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
             return False
         return True
     except Exception as e:
-        logger.error(f"Membership check failed: {e}")
+        # This will show you exactly what is wrong with your channel setup in Vercel logs
+        logger.error(f"MEMBERSHIP CRASH for channel '{CHANNEL_LINK}': {e}")
         return False
 
 def filter_data(data: dict) -> str:
@@ -163,21 +171,25 @@ async def process_message(update: Update):
                 
     # --- SEARCH COMMANDS ---
     elif cmd in ["/num", "/aadhar", "/upi", "/tg", "/vehicle"]:
+        # 1. Check Channel Membership
         if not await check_membership(user_id):
-            await bot.send_message(chat_id=chat_id, text=f"⚠️ Join our channel to use this bot: {CHANNEL_LINK}")
+            await bot.send_message(chat_id=chat_id, text=f"⚠️ Join our channel to use this bot: {raw_channel}")
             return
             
+        # 2. Check Credits
         user = await users_col.find_one({"_id": user_id_str})
         credits = user.get("credits", 4) if user else 4
         if credits <= 0:
             await bot.send_message(chat_id=chat_id, text="❌ No credits. Contact /buycredits.")
             return
             
+        # 3. Check Input Presence
         if not args:
             await bot.send_message(chat_id=chat_id, text=f"⚠️ Please provide a value. Example: {cmd} query")
             return
         query = " ".join(args)
         
+        # 4. Whitelist Check
         if query.lower() in ["kadu1", "kadu2", "kadu3"] or await whitelist_col.find_one({"val": query}):
             await bot.send_message(chat_id=chat_id, text="🛡️ Protected")
             return
@@ -215,7 +227,7 @@ async def handle_webhook(request: Request):
         return {"status": "active", "message": "Bot is listening!"}
     
     try:
-        init_services() # Safely initialize inside request execution
+        init_services()
         body = await request.json()
         update = Update.de_json(body, bot)
         await process_message(update)
