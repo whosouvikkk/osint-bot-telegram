@@ -75,14 +75,12 @@ async def check_membership(user_id: int) -> bool:
         return False
 
 def filter_data(data: dict) -> str:
-    """Formats JSON data line-by-line forcing each detail onto its own line."""
-    # Clean up non-essential metadata keys
+    """Formats JSON data line-by-line, properly unpacking nested dictionaries inside lists."""
     for k in ["powered_by", "api_info", "developer", "credit", "status", "success"]: 
         data.pop(k, None)
         
     lines = []
     for k, v in data.items():
-        # Clean up the key names visually
         clean_key = html.escape(str(k).replace('_', ' ').replace('-', ' ').title())
         
         if isinstance(v, dict):
@@ -90,12 +88,20 @@ def filter_data(data: dict) -> str:
             for sk, sv in v.items(): 
                 clean_sub_key = html.escape(str(sk).replace('_', ' ').replace('-', ' ').title())
                 lines.append(f"   • <b>{clean_sub_key}:</b> {html.escape(str(sv))}")
+                
         elif isinstance(v, list):
             lines.append(f"🔷 <b>{clean_key}:</b>")
-            for item in v:
-                lines.append(f"   • {html.escape(str(item))}")
+            for i, item in enumerate(v):
+                # If the item inside the list is a dictionary, unpack it line by line
+                if isinstance(item, dict):
+                    lines.append(f"\n   🔸 <b>Record {i+1}:</b>")
+                    for sk, sv in item.items():
+                        clean_sub_key = html.escape(str(sk).replace('_', ' ').replace('-', ' ').title())
+                        lines.append(f"      ▪️ <b>{clean_sub_key}:</b> {html.escape(str(sv))}")
+                else:
+                    # If it's just a normal list of strings/numbers
+                    lines.append(f"   • {html.escape(str(item))}")
         else: 
-            # Forces regular string details strictly onto a fresh line with a clean bullet point
             lines.append(f"• <b>{clean_key}:</b> {html.escape(str(v))}")
             
     lines.append(f"\n👤 <b>Developer:</b> {OWNER_NAME}")
