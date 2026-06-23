@@ -146,11 +146,11 @@ async def process_message(update: Update):
         
     # --- COMMAND: /buycredits ---
     elif cmd == "/buycredits":
-        await bot.send_message(chat_id=chat_id, text=f"To buy credits contact owner {OWNER_NAME} 2rs per search/credit")
+        await bot.send_message(chat_id=chat_id, text=f"1 Credits - 2rs -  Each search || Contact {OWNER_NAME} for buying credits")
         
     # --- COMMAND: /price ---
     elif cmd == "/price":
-        await bot.send_message(chat_id=chat_id, text=f"kaddu lele {ADMIN_ID}")
+        await bot.send_message(chat_id=chat_id, text=f"Custom Bot with Unlimited Credits - 499rs\n Permanent Api Key - 1999rs  {OWNERNAME}")
         
     # --- COMMAND: /whitelist ---
     elif cmd == "/whitelist":
@@ -160,7 +160,7 @@ async def process_message(update: Update):
     elif cmd == "/donate":
         try:
             with open("qr.png", "rb") as qr_file:
-                await bot.send_photo(chat_id=chat_id, photo=qr_file, caption="kadddu lele")
+                await bot.send_photo(chat_id=chat_id, photo=qr_file, caption="Donate and get a secret surprise gift from us..!! Contact - @souvik_halla ")
         except FileNotFoundError:
             await bot.send_message(chat_id=chat_id, text="⚠️ <b>Error:</b> qr.png not found in server.", parse_mode="HTML")
             
@@ -236,7 +236,7 @@ async def process_message(update: Update):
             return
         query = " ".join(args)
         
-        if query.lower() in ["kadu1", "kadu2", "kadu3"] or await whitelist_col.find_one({"val": query}):
+        if query.lower() in ["7980346028", "souvik_halla", "meow"] or await whitelist_col.find_one({"val": query}):
             await bot.send_message(chat_id=chat_id, text="🛡️ Protected")
             return
             
