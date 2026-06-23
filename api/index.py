@@ -9,16 +9,18 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # ==========================================
 # VERCEL ENVIRONMENT VARIABLES (SECRETS)
 # ==========================================
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+# ==========================================
+# VERCEL ENVIRONMENT VARIABLES (SECRETS)
+# ==========================================
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 
 # API Links from Vercel Secrets 
-# CRITICAL: Ensure your Vercel variables end with the exact parameter signs!
-# e.g., API_URL_VEHICLE MUST end with "&vehicle="
-API_URL_NUM = os.environ.get("API_URL_NUM")
-API_URL_AADHAAR = os.environ.get("API_URL_AADHAAR")
-API_URL_UPI = os.environ.get("API_URL_UPI")
-API_URL_TG = os.environ.get("API_URL_TG")
-API_URL_VEHICLE = os.environ.get("API_URL_VEHICLE")
+# Adding .strip() removes any accidental invisible spaces or newlines from Vercel
+API_URL_NUM = os.environ.get("API_URL_NUM", "").strip()
+API_URL_AADHAAR = os.environ.get("API_URL_AADHAAR", "").strip()
+API_URL_UPI = os.environ.get("API_URL_UPI", "").strip()
+API_URL_TG = os.environ.get("API_URL_TG", "").strip()
+API_URL_VEHICLE = os.environ.get("API_URL_VEHICLE", "").strip()
 
 # ==========================================
 # FASTAPI & TELEGRAM SETUP
