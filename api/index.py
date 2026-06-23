@@ -150,7 +150,7 @@ async def process_message(update: Update):
         
     # --- COMMAND: /price ---
     elif cmd == "/price":
-        await bot.send_message(chat_id=chat_id, text=f"Custom Bot with Unlimited Credits - 499rs\n Permanent Api Key - 1999rs  {OWNERNAME}")
+        await bot.send_message(chat_id=chat_id, text=f"Custom Bot with Unlimited Credits - 499rs\n Permanent Api Key - 1999rs  {OWNERNAME} ")
         
     # --- COMMAND: /whitelist ---
     elif cmd == "/whitelist":
