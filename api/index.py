@@ -9,7 +9,7 @@ from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # ==========================================
-# ENVIRONMENT & DATABASE SETUP
+# CONFIGURATION
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
@@ -17,6 +17,7 @@ CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "").strip()
 OWNER_NAME = os.environ.get("OWNER_NAME", "Owner").strip()
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "0").strip())
 
+# Database & Bot Setup
 client = AsyncIOMotorClient(MONGO_URI)
 db = client.osint_bot_db
 users_col = db.users
@@ -109,7 +110,7 @@ bot_app.add_handler(CommandHandler("donate", lambda u, c: u.message.reply_photo(
 bot_app.add_handler(CommandHandler("add", lambda u, c: users_col.update_one({"_id": c.args[0]}, {"$inc": {"credits": int(c.args[1])}}, upsert=True) if u.effective_user.id == ADMIN_ID else None))
 
 # ==========================================
-# UNIVERSAL ROUTING (Handles BOTH GET/POST)
+# UNIVERSAL ROUTING
 # ==========================================
 @app.api_route("/{path:path}", methods=["GET", "POST"])
 async def handle_webhook(request: Request, path: str = ""):
@@ -124,5 +125,4 @@ async def handle_webhook(request: Request, path: str = ""):
         except Exception as e:
             print(f"WEBHOOK ERROR: {e}")
             return {"status": "error", "detail": str(e)}
-    
     return {"message": "Server Active", "method": "GET"}
