@@ -10,9 +10,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # VERCEL ENVIRONMENT VARIABLES (SECRETS)
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-OWNER_NAME = os.environ.get("OWNER_NAME", "Owner")
 
 # Pulling individual API links from Vercel Secrets
+# Ensure these variables in Vercel end with the equals sign (e.g., "...?key=op&num=")
 API_URL_NUM = os.environ.get("API_URL_NUM")
 API_URL_AADHAAR = os.environ.get("API_URL_AADHAAR")
 API_URL_UPI = os.environ.get("API_URL_UPI")
@@ -21,7 +21,8 @@ API_URL_TG = os.environ.get("API_URL_TG")
 # ==========================================
 # FASTAPI & TELEGRAM SETUP
 # ==========================================
-app_fastapi = FastAPI()
+# Crucial: Must be named exactly 'app' for Vercel's Python runtime
+app = FastAPI() 
 bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # ==========================================
@@ -29,16 +30,14 @@ bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 # ==========================================
 def filter_json_data(data: dict) -> str:
     """Removes unwanted metadata and formats the remaining data."""
-    # Remove sensitive/unwanted API keys
     keys_to_remove = ["powered_by", "api_info", "developer", "credit"]
     for key in keys_to_remove:
         data.pop(key, None)
     
-    # Format for Telegram
     output_lines = []
     for key, value in data.items():
         if isinstance(value, dict):
-            output_lines.append(f"<b>{html.escape(str(key).title())}:</b>")
+            output_lines.append(f"\n<b>{html.escape(str(key).replace('_', ' ').title())}:</b>")
             for sub_k, sub_v in value.items():
                 output_lines.append(f"  • {html.escape(str(sub_k).title())}: {html.escape(str(sub_v))}")
         else:
@@ -54,12 +53,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("System Online. Webhook active. 🚀")
 
 async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles multiple search commands and routes them to the correct API."""
+    """Handles multiple search commands and routes them to the correct Vercel Secret API."""
     
-    # 1. Determine which command was used (e.g., /num, /tg)
+    # 1. Determine which command was used
     command_used = update.message.text.split()[0].lower().split('@')[0]
     
-    # 2. Map the command to the correct Vercel secret
+    # 2. Map the command to the correct environment variable
     api_map = {
         "/num": API_URL_NUM,
         "/aadhar": API_URL_AADHAAR,
@@ -70,7 +69,7 @@ async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TY
     base_url = api_map.get(command_used)
     
     if not base_url:
-        await update.message.reply_text("System Error: API mapping not found in environment.")
+        await update.message.reply_text("System Error: API mapping not found in Vercel environment variables.")
         return
 
     if not context.args:
@@ -78,8 +77,6 @@ async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TY
         return
         
     query = quote(" ".join(context.args))
-    
-    # Construct the final URL (assuming the base URL ends with '=' as per your setup)
     final_url = f"{base_url}{query}"
     
     status_msg = await update.message.reply_text("Searching... Please wait ⏳")
@@ -105,10 +102,9 @@ async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TY
 # REGISTRATION & ROUTING
 # ==========================================
 bot_app.add_handler(CommandHandler("start", start))
-# Register all search commands to the same dynamic handler
 bot_app.add_handler(CommandHandler(["num", "aadhar", "upi", "tg"], handle_dynamic_search))
 
-@app_fastapi.post("/webhook")
+@app.post("/webhook")
 async def handle_webhook(request: Request):
     """Vercel entry point for Telegram POST requests."""
     if not bot_app._initialized:
@@ -119,3 +115,8 @@ async def handle_webhook(request: Request):
     update = Update.de_json(data, bot_app.bot)
     await bot_app.process_update(update)
     return {"status": "ok"}
+
+@app.get("/")
+def home():
+    """Health check endpoint to verify the server is running."""
+    return {"message": "Telegram Bot Webhook Server is active."}
