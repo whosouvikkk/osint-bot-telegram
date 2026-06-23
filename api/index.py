@@ -42,7 +42,6 @@ def init_services():
     global bot, users_col, whitelist_col
     if bot is None:
         bot = Bot(token=BOT_TOKEN)
-        # Fix for Vercel SSL Handshake Error using certifi
         client = AsyncIOMotorClient(MONGO_URI, tlsCAFile=certifi.where())
         db = client.osint_bot_db
         users_col = db.users
@@ -64,7 +63,6 @@ async def check_membership(user_id: int) -> bool:
     if not CHANNEL_LINK: 
         return True
     try:
-        # Admins bypass membership checks automatically
         if user_id == ADMIN_ID:
             return True
             
@@ -77,20 +75,30 @@ async def check_membership(user_id: int) -> bool:
         return False
 
 def filter_data(data: dict) -> str:
-    """Formats the JSON data line-by-line and adds the Developer signature."""
-    for k in ["powered_by", "api_info", "developer", "credit"]: 
+    """Formats JSON data line-by-line forcing each detail onto its own line."""
+    # Clean up non-essential metadata keys
+    for k in ["powered_by", "api_info", "developer", "credit", "status", "success"]: 
         data.pop(k, None)
         
     lines = []
     for k, v in data.items():
+        # Clean up the key names visually
+        clean_key = html.escape(str(k).replace('_', ' ').replace('-', ' ').title())
+        
         if isinstance(v, dict):
-            lines.append(f"\n<b>{html.escape(str(k).replace('_', ' ').title())}:</b>")
+            lines.append(f"🔷 <b>{clean_key}:</b>")
             for sk, sv in v.items(): 
-                lines.append(f"  • {html.escape(str(sk).title())}: {html.escape(str(sv))}")
+                clean_sub_key = html.escape(str(sk).replace('_', ' ').replace('-', ' ').title())
+                lines.append(f"   • <b>{clean_sub_key}:</b> {html.escape(str(sv))}")
+        elif isinstance(v, list):
+            lines.append(f"🔷 <b>{clean_key}:</b>")
+            for item in v:
+                lines.append(f"   • {html.escape(str(item))}")
         else: 
-            lines.append(f"<b>{html.escape(str(k).replace('_', ' ').title())}:</b> {html.escape(str(v))}")
+            # Forces regular string details strictly onto a fresh line with a clean bullet point
+            lines.append(f"• <b>{clean_key}:</b> {html.escape(str(v))}")
             
-    lines.append(f"\n<b>Developer:</b> {OWNER_NAME}")
+    lines.append(f"\n👤 <b>Developer:</b> {OWNER_NAME}")
     return "\n".join(lines)
 
 # ==========================================
@@ -172,30 +180,25 @@ async def process_message(update: Update):
                 
     # --- SEARCH COMMANDS ---
     elif cmd in ["/num", "/aadhar", "/upi", "/tg", "/vehicle"]:
-        # 1. Check Channel Membership
         if not await check_membership(user_id):
             await bot.send_message(chat_id=chat_id, text=f"⚠️ Join our channel to use this bot: {raw_channel}")
             return
             
-        # 2. Check Credits
         user = await users_col.find_one({"_id": user_id_str})
         credits = user.get("credits", 4) if user else 4
         if credits <= 0:
             await bot.send_message(chat_id=chat_id, text="❌ No credits. Contact /buycredits.")
             return
             
-        # 3. Check Input Presence
         if not args:
             await bot.send_message(chat_id=chat_id, text=f"⚠️ Please provide a value. Example: {cmd} query")
             return
         query = " ".join(args)
         
-        # 4. Whitelist Check
         if query.lower() in ["kadu1", "kadu2", "kadu3"] or await whitelist_col.find_one({"val": query}):
             await bot.send_message(chat_id=chat_id, text="🛡️ Protected")
             return
             
-        # 5. Fetch API Data
         api_url = API_MAP.get(cmd)
         if not api_url:
             await bot.send_message(chat_id=chat_id, text="⚠️ System Error: API URL not configured for this command.")
@@ -211,9 +214,7 @@ async def process_message(update: Update):
                     data = resp.json()
                     formatted_text = filter_data(data)
                     
-                    # Deduct 1 credit upon successful search
                     await users_col.update_one({"_id": user_id_str}, {"$set": {"credits": credits - 1}}, upsert=True)
-                    
                     await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=formatted_text, parse_mode="HTML")
                 else:
                     await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=f"⚠️ API Error: Code {resp.status_code}")
