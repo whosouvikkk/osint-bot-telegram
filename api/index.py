@@ -29,7 +29,6 @@ bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 # ==========================================
 def filter_json_data(data: dict) -> str:
     """Removes unwanted metadata and formats the remaining data."""
-    # This will completely drop the "powered_by" string and the entire "api_info" dictionary
     keys_to_remove = ["powered_by", "api_info", "developer", "credit"]
     for key in keys_to_remove:
         data.pop(key, None)
@@ -53,10 +52,79 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("System Online. Webhook active. 🚀")
 
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """A simple health check command."""
     await update.message.reply_text("Pong! 🌙 The server is active and responding.")
 
 async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles multiple search commands and routes them to the correct Vercel Secret API."""
-    
     command_used = update.message.text.split()[0].lower().split('@')[0]
+    
+    api_map = {
+        "/num": API_URL_NUM,
+        "/aadhar": API_URL_AADHAAR,
+        "/upi": API_URL_UPI,
+        "/tg": API_URL_TG,
+        "/vehicle": API_URL_VEHICLE 
+    }
+    
+    base_url = api_map.get(command_used)
+    
+    if not base_url:
+        await update.message.reply_text("System Error: API mapping not found in Vercel environment variables.")
+        return
+
+    if not context.args:
+        await update.message.reply_text(f"⚠️ Please provide a query. Example: {command_used} 12345")
+        return
+        
+    query = quote(" ".join(context.args))
+    final_url = f"{base_url}{query}"
+    
+    status_msg = await update.message.reply_text("Searching... Please wait ⏳")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(final_url)
+            
+            if resp.status_code == 200:
+                raw_data = resp.json()
+                clean_output = filter_json_data(raw_data)
+                
+                final_text = f"<b>Result for {html.escape(query)}:</b>\n\n{clean_output}"
+                await status_msg.edit_text(final_text, parse_mode="HTML")
+            else:
+                await status_msg.edit_text(f"⚠️ External API Error. Code: {resp.status_code}")
+                
+    except Exception as e:
+        await status_msg.edit_text("⚠️ A system error occurred while contacting the server.")
+
+# ==========================================
+# REGISTRATION & ROUTING
+# ==========================================
+bot_app.add_handler(CommandHandler("start", start))
+bot_app.add_handler(CommandHandler("ping", ping))
+bot_app.add_handler(CommandHandler(["num", "aadhar", "upi", "tg", "vehicle"], handle_dynamic_search))
+
+# Catch the webhook request on EVERY possible path combination Vercel might use
+@app.post("/")
+@app.post("/webhook")
+@app.post("/api")
+@app.post("/api/index")
+@app.post("/api/webhook")
+async def handle_webhook(request: Request):
+    """Universal webhook endpoint that processes updates from Telegram."""
+    if not bot_app._initialized:
+        await bot_app.initialize()
+        await bot_app.start()
+
+    data = await request.json()
+    update = Update.de_json(data, bot_app.bot)
+    await bot_app.process_update(update)
+    return {"status": "ok"}
+
+# Catch browser visits on any of these paths to display the status message
+@app.get("/")
+@app.get("/api")
+@app.get("/api/index")
+def home():
+    """Health check endpoint to verify the server is running."""
+    return {"message": "Telegram Bot Webhook Server is active and listening! 🚀"}
