@@ -9,8 +9,10 @@ from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # ==========================================
-# SETUP & LOGGING
+# 1. FASTAPI INITIALIZATION (Must be top-level & safe)
 # ==========================================
+app = FastAPI()
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -24,12 +26,22 @@ try:
 except ValueError:
     ADMIN_ID = 0
 
-# Database & Bot Instances
-client = AsyncIOMotorClient(MONGO_URI)
-db = client.osint_bot_db
-users_col = db.users
-whitelist_col = db.whitelist
-bot = Bot(token=BOT_TOKEN)
+# Safe Lazy Initialization for Bot and DB to prevent Vercel Build Crashes
+bot = None
+users_col = None
+whitelist_col = None
+
+def init_services():
+    global bot, users_col, whitelist_col
+    if bot is None:
+        if not BOT_TOKEN:
+            logger.error("BOT_TOKEN environment variable is missing!")
+        bot = Bot(token=BOT_TOKEN)
+        
+        client = AsyncIOMotorClient(MONGO_URI)
+        db = client.osint_bot_db
+        users_col = db.users
+        whitelist_col = db.whitelist
 
 API_MAP = {
     "/num": os.environ.get("API_URL_NUM", "").strip(),
@@ -38,8 +50,6 @@ API_MAP = {
     "/tg": os.environ.get("API_URL_TG", "").strip(),
     "/vehicle": os.environ.get("API_URL_VEHICLE", "").strip()
 }
-
-app = FastAPI()
 
 # ==========================================
 # HELPER FUNCTIONS
@@ -55,11 +65,10 @@ async def check_membership(user_id: int) -> bool:
         return True
     except Exception as e:
         logger.error(f"Membership check failed: {e}")
-        return False # Fails safe: restricts access if bot isn't admin
+        return False
 
 def filter_data(data: dict) -> str:
     """Formats the JSON data line-by-line and adds the Developer signature."""
-    # Remove metadata
     for k in ["powered_by", "api_info", "developer", "credit"]: 
         data.pop(k, None)
         
@@ -72,7 +81,6 @@ def filter_data(data: dict) -> str:
         else: 
             lines.append(f"<b>{html.escape(str(k).replace('_', ' ').title())}:</b> {html.escape(str(v))}")
             
-    # Add Developer tag
     lines.append(f"\n<b>Developer:</b> {OWNER_NAME}")
     return "\n".join(lines)
 
@@ -155,30 +163,25 @@ async def process_message(update: Update):
                 
     # --- SEARCH COMMANDS ---
     elif cmd in ["/num", "/aadhar", "/upi", "/tg", "/vehicle"]:
-        # 1. Check Channel Membership
         if not await check_membership(user_id):
             await bot.send_message(chat_id=chat_id, text=f"⚠️ Join our channel to use this bot: {CHANNEL_LINK}")
             return
             
-        # 2. Check Credits
         user = await users_col.find_one({"_id": user_id_str})
         credits = user.get("credits", 4) if user else 4
         if credits <= 0:
             await bot.send_message(chat_id=chat_id, text="❌ No credits. Contact /buycredits.")
             return
             
-        # 3. Check Input Presence
         if not args:
             await bot.send_message(chat_id=chat_id, text=f"⚠️ Please provide a value. Example: {cmd} query")
             return
         query = " ".join(args)
         
-        # 4. Hardcoded & Database Whitelist Check
         if query.lower() in ["kadu1", "kadu2", "kadu3"] or await whitelist_col.find_one({"val": query}):
             await bot.send_message(chat_id=chat_id, text="🛡️ Protected")
             return
             
-        # 5. Fetch API Data
         api_url = API_MAP.get(cmd)
         if not api_url:
             await bot.send_message(chat_id=chat_id, text="⚠️ System Error: API URL not configured for this command.")
@@ -193,3 +196,30 @@ async def process_message(update: Update):
                 if resp.status_code == 200:
                     data = resp.json()
                     formatted_text = filter_data(data)
+                    
+                    await users_col.update_one({"_id": user_id_str}, {"$set": {"credits": credits - 1}}, upsert=True)
+                    await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=formatted_text, parse_mode="HTML")
+                else:
+                    await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=f"⚠️ API Error: Code {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Search API Error: {e}")
+            safe_error = html.escape(str(e))
+            await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=f"⚠️ <b>System Error:</b>\n<code>{safe_error}</code>", parse_mode="HTML")
+
+# ==========================================
+# UNIVERSAL WEBHOOK ROUTE
+# ==========================================
+@app.api_route("/{path:path}", methods=["GET", "POST"])
+async def handle_webhook(request: Request):
+    if request.method == "GET":
+        return {"status": "active", "message": "Bot is listening!"}
+    
+    try:
+        init_services() # Safely initialize inside request execution
+        body = await request.json()
+        update = Update.de_json(body, bot)
+        await process_message(update)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Critical Webhook Error: {e}", exc_info=True)
+        return {"status": "error"}
