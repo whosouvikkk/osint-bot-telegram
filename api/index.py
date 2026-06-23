@@ -9,7 +9,7 @@ from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # ==========================================
-# ENVIRONMENT & DATABASE
+# ENVIRONMENT & DATABASE SETUP
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
@@ -110,8 +110,18 @@ bot_app.add_handler(CommandHandler("whitelist", lambda u, c: u.message.reply_tex
 bot_app.add_handler(CommandHandler("donate", lambda u, c: u.message.reply_photo(open("qr.png", "rb"), caption="kadddu lele")))
 bot_app.add_handler(CommandHandler("add", lambda u, c: users_col.update_one({"_id": c.args[0]}, {"$inc": {"credits": int(c.args[1])}}, upsert=True) if u.effective_user.id == ADMIN_ID else None))
 
-@app.post("/webhook")
-async def handle_webhook(request: Request):
+# ==========================================
+# UNIVERSAL WEBHOOK ROUTING
+# ==========================================
+@app.post("/{path:path}")
+async def handle_webhook(request: Request, path: str = ""):
+    if not bot_app._initialized:
+        await bot_app.initialize()
+        await bot_app.start()
     data = await request.json()
     await bot_app.process_update(Update.de_json(data, bot_app.bot))
     return {"status": "ok"}
+
+@app.get("/")
+def home():
+    return {"message": "Server Active"}
