@@ -3,7 +3,7 @@ import html
 import httpx
 from urllib.parse import quote
 from fastapi import FastAPI, Request
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +17,7 @@ CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "").strip()
 OWNER_NAME = os.environ.get("OWNER_NAME", "Owner").strip()
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "0").strip())
 
+# Initialize DB and Bot
 client = AsyncIOMotorClient(MONGO_URI)
 db = client.osint_bot_db
 users_col = db.users
@@ -44,7 +45,7 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text(f"⚠️ Join our channel to use this bot: {CHANNEL_LINK}")
             return False
         return True
-    except: return False
+    except Exception: return False
 
 def filter_data(data: dict) -> str:
     for k in ["powered_by", "api_info", "developer", "credit"]: data.pop(k, None)
@@ -62,15 +63,10 @@ def filter_data(data: dict) -> str:
 # ==========================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = ("👻 <b>MoonWitch OSINT</b>\n\n"
-           "/num <num> : Number lookup\n"
-           "/upi <upi> : UPI lookup\n"
-           "/tg <user> : Telegram trace\n"
-           "/vehicle <num> : Vehicle info\n"
-           "/credits : Check balance\n"
-           "/buycredits : Buy info\n"
-           "/whitelist : Protect info\n"
-           "/price : View pricing\n"
-           "/donate : Support us")
+           "/num <num> : Number lookup\n/upi <upi> : UPI lookup\n"
+           "/tg <user> : Telegram trace\n/vehicle <num> : Vehicle info\n"
+           "/credits : Check balance\n/buycredits : Buy info\n"
+           "/whitelist : Protect info\n/price : View pricing\n/donate : Support us")
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -85,8 +81,11 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cmd = update.message.text.split()[0].lower().split('@')[0]
     query = " ".join(context.args)
+    if not query:
+        await update.message.reply_text("⚠️ Please provide a value.")
+        return
     
-    if query in ["7980346028", "souvik_halla", "kadu3"] or await whitelist_col.find_one({"val": query}):
+    if query in ["kadu1", "kadu2", "kadu3"] or await whitelist_col.find_one({"val": query}):
         await update.message.reply_text("🛡️ Protected")
         return
 
@@ -96,7 +95,7 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if resp.status_code == 200:
                 await users_col.update_one({"_id": uid}, {"$set": {"credits": credits - 1}}, upsert=True)
                 await update.message.reply_text(filter_data(resp.json()), parse_mode="HTML")
-            else: await update.message.reply_text("⚠️ API Error.")
+            else: await update.message.reply_text(f"⚠️ API Error: {resp.status_code}")
     except Exception as e:
         await update.message.reply_text(f"⚠️ Error: {html.escape(str(e))}", parse_mode="HTML")
 
@@ -110,18 +109,15 @@ bot_app.add_handler(CommandHandler("whitelist", lambda u, c: u.message.reply_tex
 bot_app.add_handler(CommandHandler("donate", lambda u, c: u.message.reply_photo(open("qr.png", "rb"), caption="kadddu lele")))
 bot_app.add_handler(CommandHandler("add", lambda u, c: users_col.update_one({"_id": c.args[0]}, {"$inc": {"credits": int(c.args[1])}}, upsert=True) if u.effective_user.id == ADMIN_ID else None))
 
-# ==========================================
-# UNIVERSAL WEBHOOK ROUTING
-# ==========================================
 @app.post("/{path:path}")
 async def handle_webhook(request: Request, path: str = ""):
-    if not bot_app._initialized:
-        await bot_app.initialize()
-        await bot_app.start()
-    data = await request.json()
-    await bot_app.process_update(Update.de_json(data, bot_app.bot))
-    return {"status": "ok"}
-
-@app.get("/")
-def home():
-    return {"message": "Server Active"}
+    try:
+        if not bot_app._initialized:
+            await bot_app.initialize()
+            await bot_app.start()
+        data = await request.json()
+        await bot_app.process_update(Update.de_json(data, bot_app.bot))
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"WEBHOOK ERROR: {e}")
+        return {"status": "error"}
