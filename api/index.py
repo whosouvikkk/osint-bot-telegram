@@ -11,7 +11,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# API Links from Vercel Secrets (ensure they end with '=')
+# API Links from Vercel Secrets 
+# CRITICAL: Ensure your Vercel variables end with the exact parameter signs!
+# e.g., API_URL_VEHICLE MUST end with "&vehicle="
 API_URL_NUM = os.environ.get("API_URL_NUM")
 API_URL_AADHAAR = os.environ.get("API_URL_AADHAAR")
 API_URL_UPI = os.environ.get("API_URL_UPI")
@@ -69,7 +71,7 @@ async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TY
     base_url = api_map.get(command_used)
     
     if not base_url:
-        await update.message.reply_text("System Error: API mapping not found in Vercel environment variables.")
+        await update.message.reply_text("⚠️ System Error: API mapping not found in Vercel environment variables.")
         return
 
     if not context.args:
@@ -79,10 +81,11 @@ async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TY
     query = quote(" ".join(context.args))
     final_url = f"{base_url}{query}"
     
-    status_msg = await update.message.reply_text("Searching... Please wait ⏳")
+    status_msg = await update.message.reply_text("Searching the shadows... Please wait ⏳")
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        # Increased timeout to 60 seconds to handle Render server cold starts
+        async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.get(final_url)
             
             if resp.status_code == 200:
@@ -95,7 +98,9 @@ async def handle_dynamic_search(update: Update, context: ContextTypes.DEFAULT_TY
                 await status_msg.edit_text(f"⚠️ External API Error. Code: {resp.status_code}")
                 
     except Exception as e:
-        await status_msg.edit_text("⚠️ A system error occurred while contacting the server.")
+        # Detailed error exposure for debugging
+        safe_error = html.escape(str(e))
+        await status_msg.edit_text(f"⚠️ <b>System Error Encountered:</b>\n<code>{safe_error}</code>", parse_mode="HTML")
 
 # ==========================================
 # REGISTRATION & ROUTING
