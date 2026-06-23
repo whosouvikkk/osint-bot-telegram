@@ -3,7 +3,7 @@ import html
 import httpx
 from urllib.parse import quote
 from fastapi import FastAPI, Request
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,7 +17,6 @@ CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "").strip()
 OWNER_NAME = os.environ.get("OWNER_NAME", "Owner").strip()
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "0").strip())
 
-# Initialize DB and Bot
 client = AsyncIOMotorClient(MONGO_URI)
 db = client.osint_bot_db
 users_col = db.users
@@ -109,15 +108,21 @@ bot_app.add_handler(CommandHandler("whitelist", lambda u, c: u.message.reply_tex
 bot_app.add_handler(CommandHandler("donate", lambda u, c: u.message.reply_photo(open("qr.png", "rb"), caption="kadddu lele")))
 bot_app.add_handler(CommandHandler("add", lambda u, c: users_col.update_one({"_id": c.args[0]}, {"$inc": {"credits": int(c.args[1])}}, upsert=True) if u.effective_user.id == ADMIN_ID else None))
 
-@app.post("/{path:path}")
+# ==========================================
+# UNIVERSAL ROUTING (Handles BOTH GET/POST)
+# ==========================================
+@app.api_route("/{path:path}", methods=["GET", "POST"])
 async def handle_webhook(request: Request, path: str = ""):
-    try:
-        if not bot_app._initialized:
-            await bot_app.initialize()
-            await bot_app.start()
-        data = await request.json()
-        await bot_app.process_update(Update.de_json(data, bot_app.bot))
-        return {"status": "ok"}
-    except Exception as e:
-        print(f"WEBHOOK ERROR: {e}")
-        return {"status": "error"}
+    if request.method == "POST":
+        try:
+            if not bot_app._initialized:
+                await bot_app.initialize()
+                await bot_app.start()
+            data = await request.json()
+            await bot_app.process_update(Update.de_json(data, bot_app.bot))
+            return {"status": "ok"}
+        except Exception as e:
+            print(f"WEBHOOK ERROR: {e}")
+            return {"status": "error", "detail": str(e)}
+    
+    return {"message": "Server Active", "method": "GET"}
