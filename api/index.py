@@ -2,6 +2,7 @@ import os
 import html
 import httpx
 import logging
+import certifi
 from urllib.parse import quote
 from fastapi import FastAPI, Request
 from telegram import Update, Bot
@@ -26,7 +27,7 @@ try:
 except ValueError:
     ADMIN_ID = 0
 
-# Auto-format channel link (Converts https://t.me/example to @example)
+# Auto-format channel link
 if "t.me/" in raw_channel:
     CHANNEL_LINK = "@" + raw_channel.split("t.me/")[-1].split("/")[0]
 else:
@@ -41,7 +42,8 @@ def init_services():
     global bot, users_col, whitelist_col
     if bot is None:
         bot = Bot(token=BOT_TOKEN)
-        client = AsyncIOMotorClient(MONGO_URI)
+        # Fix for Vercel SSL Handshake Error using certifi
+        client = AsyncIOMotorClient(MONGO_URI, tlsCAFile=certifi.where())
         db = client.osint_bot_db
         users_col = db.users
         whitelist_col = db.whitelist
@@ -71,7 +73,6 @@ async def check_membership(user_id: int) -> bool:
             return False
         return True
     except Exception as e:
-        # This will show you exactly what is wrong with your channel setup in Vercel logs
         logger.error(f"MEMBERSHIP CRASH for channel '{CHANNEL_LINK}': {e}")
         return False
 
@@ -194,6 +195,7 @@ async def process_message(update: Update):
             await bot.send_message(chat_id=chat_id, text="🛡️ Protected")
             return
             
+        # 5. Fetch API Data
         api_url = API_MAP.get(cmd)
         if not api_url:
             await bot.send_message(chat_id=chat_id, text="⚠️ System Error: API URL not configured for this command.")
@@ -209,7 +211,9 @@ async def process_message(update: Update):
                     data = resp.json()
                     formatted_text = filter_data(data)
                     
+                    # Deduct 1 credit upon successful search
                     await users_col.update_one({"_id": user_id_str}, {"$set": {"credits": credits - 1}}, upsert=True)
+                    
                     await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=formatted_text, parse_mode="HTML")
                 else:
                     await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=f"⚠️ API Error: Code {resp.status_code}")
