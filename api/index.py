@@ -146,11 +146,11 @@ async def process_message(update: Update):
         
     # --- COMMAND: /buycredits ---
     elif cmd == "/buycredits":
-        await bot.send_message(chat_id=chat_id, text=f"1 Credits - 2rs -  Each search \nContact {OWNER_NAME} for buying credits")
+        await bot.send_message(chat_id=chat_id, text=f"1 Credits - 2rs \n1 Seacrh use 1 Credit \nContact {OWNER_NAME} for buying credits")
         
     # --- COMMAND: /price ---
     elif cmd == "/price":
-        await bot.send_message(chat_id=chat_id, text=f"Permanent Api Key for All - 2499rs/30$ \nSpecific Api Key - 499rs/5$ \nCustom Bot with Unlimited Use - 249rs/2.5$ \n Accepted Payment Methods - Upi / Crypto / Paypal \n Contact Owner - {OWNER_NAME} ")
+        await bot.send_message(chat_id=chat_id, text=f"Permanent Api Key for All - 2499rs/30$ \nSpecific Api Key - 499rs/5$ \nCustom Bot with Unlimited Use - 249rs/2.5$ \nAccepted Payment Methods - Upi / Crypto / Paypal \nContact Owner - {OWNER_NAME} ")
         
     # --- COMMAND: /whitelist ---
     elif cmd == "/whitelist":
