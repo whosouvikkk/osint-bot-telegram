@@ -92,14 +92,12 @@ def filter_data(data: dict) -> str:
         elif isinstance(v, list):
             lines.append(f"🔷 <b>{clean_key}:</b>")
             for i, item in enumerate(v):
-                # If the item inside the list is a dictionary, unpack it line by line
                 if isinstance(item, dict):
                     lines.append(f"\n   🔸 <b>Record {i+1}:</b>")
                     for sk, sv in item.items():
                         clean_sub_key = html.escape(str(sk).replace('_', ' ').replace('-', ' ').title())
                         lines.append(f"      ▪️ <b>{clean_sub_key}:</b> {html.escape(str(sv))}")
                 else:
-                    # If it's just a normal list of strings/numbers
                     lines.append(f"   • {html.escape(str(item))}")
         else: 
             lines.append(f"• <b>{clean_key}:</b> {html.escape(str(v))}")
@@ -183,7 +181,44 @@ async def process_message(update: Update):
                     await bot.send_message(chat_id=chat_id, text="⚠️ Amount must be a number.")
             else:
                 await bot.send_message(chat_id=chat_id, text="Usage: /add <tg_id> <amount>")
+        else:
+            await bot.send_message(chat_id=chat_id, text="⛔ You do not have permission to use this command.")
+
+    # --- COMMAND: /stats (ADMIN ONLY) ---
+    elif cmd == "/stats":
+        if user_id == ADMIN_ID:
+            try:
+                # Fetch up to 100 users to prevent exceeding Telegram's message limits
+                users_cursor = users_col.find({})
+                users_list = await users_cursor.to_list(length=100)
+                total_users = await users_col.count_documents({})
                 
+                if not users_list:
+                    await bot.send_message(chat_id=chat_id, text="📊 No users found in database.")
+                    return
+                    
+                lines = [f"📊 <b>Bot Statistics</b>", f"👥 Total Users: <b>{total_users}</b>\n"]
+                for u in users_list:
+                    user_id_display = u.get('_id', 'Unknown')
+                    user_credits = u.get('credits', 0)
+                    lines.append(f"👤 <code>{user_id_display}</code> - Credits: {user_credits}")
+                    
+                if total_users > 100:
+                    lines.append("\n<i>...Showing first 100 users</i>")
+                    
+                stats_text = "\n".join(lines)
+                
+                # Failsafe for telegram character limits
+                if len(stats_text) > 4000:
+                    stats_text = stats_text[:4000] + "\n...[Truncated]"
+                    
+                await bot.send_message(chat_id=chat_id, text=stats_text, parse_mode="HTML")
+            except Exception as e:
+                logger.error(f"Stats API Error: {e}")
+                await bot.send_message(chat_id=chat_id, text="⚠️ Error retrieving stats.")
+        else:
+            await bot.send_message(chat_id=chat_id, text="⛔ You do not have permission to use this command.")
+            
     # --- SEARCH COMMANDS ---
     elif cmd in ["/num", "/aadhar", "/upi", "/tg", "/vehicle"]:
         if not await check_membership(user_id):
