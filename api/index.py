@@ -146,7 +146,7 @@ async def process_message(update: Update):
         
     # --- COMMAND: /buycredits ---
     elif cmd == "/buycredits":
-        await bot.send_message(chat_id=chat_id, text=f"1 Credits - 2rs \n1 Seacrh use 1 Credit \nContact {OWNER_NAME} for buying credits")
+        await bot.send_message(chat_id=chat_id, text=f"1 Credits - 2rs \n1 Search uses 1 Credit \nContact {OWNER_NAME} for buying credits")
         
     # --- COMMAND: /price ---
     elif cmd == "/price":
