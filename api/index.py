@@ -9,15 +9,11 @@ from telegram import Update, Bot
 from telegram.constants import ChatMemberStatus
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# ==========================================
-# 1. FASTAPI INITIALIZATION
-# ==========================================
 app = FastAPI()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Environment Variables
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
 raw_channel = os.environ.get("CHANNEL_LINK", "").strip()
@@ -27,13 +23,12 @@ try:
 except ValueError:
     ADMIN_ID = 0
 
-# Auto-format channel link
 if "t.me/" in raw_channel:
     CHANNEL_LINK = "@" + raw_channel.split("t.me/")[-1].split("/")[0]
 else:
     CHANNEL_LINK = raw_channel
 
-# Safe Lazy Initialization
+
 bot = None
 users_col = None
 whitelist_col = None
@@ -55,9 +50,7 @@ API_MAP = {
     "/vehicle": os.environ.get("API_URL_VEHICLE", "").strip()
 }
 
-# ==========================================
-# HELPER FUNCTIONS
-# ==========================================
+
 async def check_membership(user_id: int) -> bool:
     """Checks if the user is in the required Telegram channel."""
     if not CHANNEL_LINK: 
@@ -105,9 +98,7 @@ def filter_data(data: dict) -> str:
     lines.append(f"\n👤 <b>Developer:</b> {OWNER_NAME}")
     return "\n".join(lines)
 
-# ==========================================
-# MESSAGE ROUTER
-# ==========================================
+
 async def process_message(update: Update):
     if not update.message or not update.message.text: return
     
@@ -120,7 +111,6 @@ async def process_message(update: Update):
     cmd = parts[0].lower().split('@')[0]
     args = parts[1:]
     
-    # --- COMMAND: /start ---
     if cmd == "/start":
         msg = (
             "👻 <b>MoonWitch OSINT</b>\n\n"
@@ -138,25 +128,24 @@ async def process_message(update: Update):
         )
         await bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
         
-    # --- COMMAND: /credits ---
     elif cmd == "/credits":
         user = await users_col.find_one({"_id": user_id_str})
         credits = user.get("credits", 4) if user else 4
         await bot.send_message(chat_id=chat_id, text=f"💳 Your credits: <b>{credits}</b>", parse_mode="HTML")
         
-    # --- COMMAND: /buycredits ---
+   
     elif cmd == "/buycredits":
         await bot.send_message(chat_id=chat_id, text=f"1 Credits - 2rs \n1 Search uses 1 Credit \nContact {OWNER_NAME} for buying credits")
         
-    # --- COMMAND: /price ---
+  
     elif cmd == "/price":
         await bot.send_message(chat_id=chat_id, text=f"Permanent Api Key for All - 2499rs/30$ \nSpecific Api Key - 499rs/5$ \nCustom Bot with Unlimited Use For 1month - 249rs/2.5$ \nAccepted Payment Methods - Upi / Crypto / Paypal \nContact Owner - {OWNER_NAME} ")
         
-    # --- COMMAND: /whitelist ---
+   
     elif cmd == "/whitelist":
         await bot.send_message(chat_id=chat_id, text=f"For whitelisting all your infos at 249rs contact owner {OWNER_NAME}")
         
-    # --- COMMAND: /donate ---
+   
     elif cmd == "/donate":
         try:
             with open("qr.png", "rb") as qr_file:
@@ -164,7 +153,7 @@ async def process_message(update: Update):
         except FileNotFoundError:
             await bot.send_message(chat_id=chat_id, text="⚠️ <b>Error:</b> qr.png not found in server.", parse_mode="HTML")
             
-    # --- COMMAND: /add (ADMIN ONLY) ---
+ 
     elif cmd == "/add":
         if user_id == ADMIN_ID:
             if len(args) == 2:
@@ -184,11 +173,11 @@ async def process_message(update: Update):
         else:
             await bot.send_message(chat_id=chat_id, text="⛔ You do not have permission to use this command.")
 
-    # --- COMMAND: /stats (ADMIN ONLY) ---
+    
     elif cmd == "/stats":
         if user_id == ADMIN_ID:
             try:
-                # Fetch up to 100 users to prevent exceeding Telegram's message limits
+                
                 users_cursor = users_col.find({})
                 users_list = await users_cursor.to_list(length=100)
                 total_users = await users_col.count_documents({})
@@ -208,7 +197,7 @@ async def process_message(update: Update):
                     
                 stats_text = "\n".join(lines)
                 
-                # Failsafe for telegram character limits
+                
                 if len(stats_text) > 4000:
                     stats_text = stats_text[:4000] + "\n...[Truncated]"
                     
@@ -219,7 +208,7 @@ async def process_message(update: Update):
         else:
             await bot.send_message(chat_id=chat_id, text="⛔ You do not have permission to use this command.")
             
-    # --- SEARCH COMMANDS ---
+   
     elif cmd in ["/num", "/aadhar", "/upi", "/tg", "/vehicle"]:
         if not await check_membership(user_id):
             await bot.send_message(chat_id=chat_id, text=f"⚠️ Join our channel to use this bot: {raw_channel}")
@@ -264,9 +253,7 @@ async def process_message(update: Update):
             safe_error = html.escape(str(e))
             await bot.edit_message_text(chat_id=chat_id, message_id=status_msg.message_id, text=f"⚠️ <b>System Error:</b>\n<code>{safe_error}</code>", parse_mode="HTML")
 
-# ==========================================
-# UNIVERSAL WEBHOOK ROUTE
-# ==========================================
+
 @app.api_route("/{path:path}", methods=["GET", "POST"])
 async def handle_webhook(request: Request):
     if request.method == "GET":
