@@ -69,7 +69,7 @@ async def check_membership(user_id: int) -> bool:
 
 def filter_data(data: dict) -> str:
     """Formats JSON data line-by-line, properly unpacking nested dictionaries inside lists."""
-    for k in ["powered_by", "api_info", "developer", "credit", "status", "success"]: 
+    for k in ["powered_by", "api_info", "developer", "credit", "status", "success", "@BRONX_ULTRA", "📅 30 Days = ₹300", "👑 Lifetime = ₹5000"]: 
         data.pop(k, None)
         
     lines = []
