@@ -114,16 +114,7 @@ async def process_message(update: Update):
     if cmd == "/start":
         msg = (
             "👻 <b>MoonWitch OSINT</b>\n\n"
-            "<b>Commands:</b>\n"
-            "• <code>/num &lt;number&gt;</code> - Number to Info\n"
-            "• <code>/aadhar &lt;number&gt;</code> - Aadhar to Info\n"
-            "• <code>/upi &lt;id&gt;</code> - UPI to Info\n"
-            "• <code>/tg &lt;user&gt;</code> - Telegram to Phone Number\n"
-            "• <code>/vehicle &lt;number&gt;</code> - Vehicle to Phone Number\n"
-            "• <code>/credits</code> - Check users credits\n"
-            "• <code>/buycredits</code> - Buy credits to use Bot Again\n"
-            "• <code>/whitelist &lt;input&gt;</code> - Protect your Details\n"
-            "• <code>/price</code> - View pricing\n"
+            "THE OSINT BOT IS SHIFTED TO WEBSITE NOW. KINDLY USE THE WEBSITE FOR LOOKUPS - https://moonwitch.in/"
             "• <code>/donate</code> - Support us"
         )
         await bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
