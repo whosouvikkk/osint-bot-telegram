@@ -115,7 +115,6 @@ async def process_message(update: Update):
         msg = (
             "👻 <b>MoonWitch OSINT</b>\n\n"
             "THE OSINT BOT IS SHIFTED TO WEBSITE NOW. KINDLY USE THE WEBSITE FOR LOOKUPS - https://moonwitch.in/"
-            "• <code>/donate</code> - Support us"
         )
         await bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
         
